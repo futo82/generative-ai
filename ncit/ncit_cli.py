@@ -1,3 +1,4 @@
+import argparse
 import datetime
 
 from numpy import dot
@@ -16,7 +17,29 @@ class Concept(SQLModel, table=True):
     embedding: List[float] = Field(sa_column=Column(Vector(768)))
     date_uploaded: datetime.datetime = Field(default_factory=datetime.datetime.utcnow, nullable=False)
 
-POSTGRES_URL = 'postgresql://postgres:mysecretpassword@localhost:5432/postgres' # TODO: Parameterize PostgreSQL URL
+parser = argparse.ArgumentParser(
+    prog='load_data.py',
+    description='This program takes a query and converts it to a text embedding to search a PostgreSQL database with the pgvector extension containing NCIt concepts.')
+parser.add_argument('--postgres_url', help='The url to connect to the PostgreSQL database.')
+parser.add_argument('--embedding_model', help='The embedding model to use.')
+parser.add_argument('--num_results', type=int, help='The number of results to return.')
+args = parser.parse_args()
+
+POSTGRES_URL = 'postgresql://postgres:mysecretpassword@localhost:5432/postgres' 
+if args.postgres_url:
+    print("Setting POSTGRES_URL to %s ..." % args.postgres_url)
+    POSTGRES_URL = args.postgres_url
+
+EMBEDDING_MODEL = 'sentence-transformers/all-mpnet-base-v2'
+if args.embedding_model:
+    print("Setting EMBEDDING_MODEL to %s ..." % args.embedding_model)
+    EMBEDDING_MODEL = args.embedding_model
+
+NUM_RESULTS = 10
+if args.num_results:
+    print("Setting NUM_RESULTS to %i ..." % args.num_results)
+    NUM_RESULTS = args.num_results
+
 postgres_engine = create_engine(POSTGRES_URL, echo=False)
 SQLModel.metadata.create_all(postgres_engine)
 
@@ -32,12 +55,12 @@ def retrieve_results(query_embedding, num_results):
 
 def repl() -> None:
     try:
-        model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2') # TODO: Parameterize the embedding model
+        model = SentenceTransformer(EMBEDDING_MODEL) 
         while True:
             try:
                 query = input("Enter your query >> ")
                 embeddings = model.encode([query])
-                top_results = retrieve_results(embeddings[0], 10) # TODO: Parameterize the number of results
+                top_results = retrieve_results(embeddings[0], NUM_RESULTS)
                 print()
                 print("Results: ")
                 print("=============")
